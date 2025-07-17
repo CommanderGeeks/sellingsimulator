@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Liquidation Pressure Simulator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .controls {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .control-group {
+            display: inline-block;
+            margin-right: 20px;
+            margin-bottom: 10px;
+        }
+        label {
+            display: inline-block;
+            width: 150px;
+            font-weight: bold;
+        }
+        input {
+            width: 100px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: right;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+            position: sticky;
+            top: 0;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        .highlight {
+            background-color: #ffe6e6 !important;
+        }
+        .summary {
+            background-color: #e6f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .chart-container {
+            margin: 20px 0;
+            height: 400px;
+        }
+        .tabs {
+            margin-top: 30px;
+        }
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tab-button {
+            padding: 10px 20px;
+            background-color: #f0f0f0;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px 5px 0 0;
+        }
+        .tab-button.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .holder-status {
+            font-size: 12px;
+            color: #666;
+        }
+        .fully-liquidated {
+            color: #d32f2f;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Token Liquidation Pressure Simulator</h1>
+        
+        <div class="controls">
+            <h3>Simulation Parameters</h3>
+            <div class="control-group">
+                <label>Monthly Growth %:</label>
+                <input type="number" id="monthlyGrowth" value="3" step="0.1">
+            </div>
+            <div class="control-group">
+                <label>Initial Market Cap:</label>
+                <input type="number" id="initialMcap" value="500000000" step="1000000">
+            </div>
+            <div class="control-group">
+                <label>Initial Price:</label>
+                <input type="number" id="initialPrice" value="0.50" step="0.01">
+            </div>
+            <div class="control-group">
+                <label>% Raise Donated:</label>
+                <input type="number" id="raiseDonated" value="20" step="1">
+            </div>
+            <div class="control-group">
+                <label>Simulation Months:</label>
+                <input type="number" id="simMonths" value="120" step="12">
+            </div>
+            <button onclick="runSimulation()" style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; cursor: pointer; border-radius: 5px;">Run Simulation</button>
+        </div>
+
+        <div class="summary" id="summary">
+            <h3>Summary Statistics</h3>
+            <div id="summaryContent"></div>
+        </div>
+
+        <div class="tabs">
+            <div class="tab-buttons">
+                <button class="tab-button active" onclick="showTab('monthly')">Monthly Analysis</button>
+                <button class="tab-button" onclick="showTab('holders')">Holder Status</button>
+                <button class="tab-button" onclick="showTab('pressure')">Selling Pressure Chart</button>
+            </div>
+
+            <div id="monthly" class="tab-content active">
+                <h2>Monthly Liquidation Analysis</h2>
+                <div style="overflow-x: auto;">
+                    <table id="monthlyTable">
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th>Market Cap</th>
+                                <th>Price</th>
+                                <th>Holders Pressure</th>
+                                <th>Group Pressure</th>
+                                <th>Total Pressure</th>
+                                <th>% of Market Cap</th>
+                                <th>Active Sellers</th>
+                            </tr>
+                        </thead>
+                        <tbody id="monthlyData"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="holders" class="tab-content">
+                <h2>Holder Liquidation Status</h2>
+                <div style="overflow-x: auto;">
+                    <table id="holderTable">
+                        <thead>
+                            <tr>
+                                <th>Holder</th>
+                                <th>Total Tokens</th>
+                                <th>Years Vested</th>
+                                <th>Monthly Release</th>
+                                <th>First Sell Month</th>
+                                <th>Last Sell Month</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="holderData"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="pressure" class="tab-content">
+                <h2>Selling Pressure Visualization</h2>
+                <canvas id="pressureChart" width="800" height="400"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Holder data
+        const holders = [
+            {name: "LM", tokens: 33635178, years: 10},
+            {name: "LIQUIDITY POOL", tokens: 28217996, years: 0},
+            {name: "ANTON", tokens: 14671231, years: 10},
+            {name: "RYAN", tokens: 14569213, years: 10},
+            {name: "BASIL ABDO", tokens: 13091755, years: 10},
+            {name: "LAITH BTC TRADE", tokens: 11442827, years: 10},
+            {name: "MENDOZA", tokens: 9745424, years: 7},
+            {name: "FOU D + TAREK D + HUSSEIN A", tokens: 9668833, years: 7},
+            {name: "LM/FP/HM/WY/MZ", tokens: 9543475, years: 7},
+            {name: "ABDULLAH / GROUP", tokens: 8763619, years: 7},
+            {name: "Paisa", tokens: 7934755, years: 7},
+            {name: "CHEF", tokens: 6429701, years: 5},
+            {name: "BUTRUS", tokens: 6063153, years: 5},
+            {name: "TAMEEM A", tokens: 5775000, years: 5},
+            {name: "RODAEL", tokens: 5000000, years: 5},
+            {name: "TOSHI DEV WALLET", tokens: 4971426, years: 5},
+            {name: "AMCF", tokens: 4901167, years: 5},
+            {name: "ABDULLAH", tokens: 4145721, years: 5},
+            {name: "AJRAM", tokens: 3373517, years: 4},
+            {name: "LOST ACCESS", tokens: 3090615, years: 4},
+            {name: "MONIQUE", tokens: 2657590, years: 4},
+            {name: "PETER HANNA", tokens: 2668935, years: 4},
+            {name: "SAS A", tokens: 2500000, years: 4},
+            {name: "AHMED MANSOUR", tokens: 2485430, years: 4},
+            {name: "ALLAM", tokens: 2180794, years: 4},
+            {name: "YAFA RELIEF", tokens: 1651163, years: 3},
+            {name: "ABDULLAH'S GROUP", tokens: 1507483, years: 3},
+            {name: "DR KAKAM", tokens: 1498394, years: 3},
+            {name: "DRAE", tokens: 1351986, years: 3},
+            {name: "EMAD GROUP", tokens: 1431685, years: 3},
+            {name: "BARON", tokens: 1144747, years: 3},
+            {name: "FOU D", tokens: 1001100, years: 3},
+            {name: "YOUSEF KAMAL", tokens: 933577, years: 3},
+            {name: "TAREK D (FD)", tokens: 899388, years: 3},
+            {name: "DR FARIS", tokens: 779451, years: 3},
+            {name: "FOU (DALIA A)", tokens: 602790, years: 2},
+            {name: "NOE", tokens: 461693, years: 2},
+            {name: "Reem A", tokens: 401000, years: 2},
+            {name: "REHAB", tokens: 400743, years: 2},
+            {name: "Hatem Gaza", tokens: 245851, years: 1},
+            {name: "HUSSEIN (FD)", tokens: 131790, years: 1},
+            {name: "Edrisi", tokens: 70000, years: 1},
+            {name: "HAMZA (FD)", tokens: 35000, years: 1},
+            {name: "SALMAN (FD)", tokens: 35000, years: 1}
+        ];
+
+        let simulationData = [];
+
+        function calculateMonthlyRelease(totalTokens, vestingYears) {
+            if (vestingYears === 0) return totalTokens; // Liquidity pool
+            return totalTokens / (vestingYears * 12);
+        }
+
+        function runSimulation() {
+            const monthlyGrowth = parseFloat(document.getElementById('monthlyGrowth').value) / 100;
+            const initialMcap = parseFloat(document.getElementById('initialMcap').value);
+            const initialPrice = parseFloat(document.getElementById('initialPrice').value);
+            const raiseDonated = parseFloat(document.getElementById('raiseDonated').value) / 100;
+            const simMonths = parseInt(document.getElementById('simMonths').value);
+
+            // Calculate group tokens after donation
+            const groupTokensBase = 25000000;
+            const groupTokens = groupTokensBase * (1 - raiseDonated);
+            const groupMonthlyRelease = groupTokens / (5 * 12); // 5 year vest
+
+            simulationData = [];
+            
+            // Track holder status
+            const holderStatus = holders.map(h => ({
+                ...h,
+                monthlyRelease: calculateMonthlyRelease(h.tokens, h.years),
+                firstSellMonth: h.years === 0 ? 1 : 13, // Liquidity pool sells immediately, others after 12 month lock
+                tokensRemaining: h.tokens,
+                lastSellMonth: null,
+                fullyLiquidated: false
+            }));
+
+            // Run simulation
+            for (let month = 1; month <= simMonths; month++) {
+                const marketCap = initialMcap * Math.pow(1 + monthlyGrowth, month - 1);
+                const price = initialPrice * Math.pow(1 + monthlyGrowth, month - 1);
+                
+                let holdersPressure = 0;
+                let activeSellers = 0;
+                
+                // Calculate holders selling pressure
+                holderStatus.forEach(holder => {
+                    // Skip Liquidity Pool - it's not a selling holder
+                    if (holder.name === "LIQUIDITY POOL") return;
+                    
+                    if (month >= holder.firstSellMonth && !holder.fullyLiquidated) {
+                        const monthsAfterLock = month - holder.firstSellMonth + 1;
+                        const maxMonths = holder.years === 0 ? 1 : holder.years * 12;
+                        
+                        if (monthsAfterLock <= maxMonths && holder.tokensRemaining > 0) {
+                            const sellAmount = Math.min(holder.monthlyRelease, holder.tokensRemaining);
+                            holdersPressure += sellAmount * price;
+                            holder.tokensRemaining -= sellAmount;
+                            activeSellers++;
+                            
+                            if (holder.tokensRemaining < 1) {
+                                holder.fullyLiquidated = true;
+                                holder.lastSellMonth = month;
+                            }
+                        }
+                    }
+                });
+                
+                // Calculate group selling pressure
+                let groupPressure = 0;
+                if (month >= 13 && month <= 72) { // 1 year lock + 5 year vest
+                    groupPressure = groupMonthlyRelease * price;
+                }
+                
+                const totalPressure = holdersPressure + groupPressure;
+                const pressurePercent = (totalPressure / marketCap) * 100;
+                
+                simulationData.push({
+                    month,
+                    marketCap,
+                    price,
+                    holdersPressure,
+                    groupPressure,
+                    totalPressure,
+                    pressurePercent,
+                    activeSellers
+                });
+            }
+            
+            updateTables();
+            updateSummary();
+            updateChart();
+        }
+
+        function formatNumber(num) {
+            return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
+        }
+
+        function formatCurrency(num) {
+            return '$' + formatNumber(num);
+        }
+
+        function updateTables() {
+            // Update monthly table
+            const monthlyBody = document.getElementById('monthlyData');
+            monthlyBody.innerHTML = '';
+            
+            simulationData.forEach(data => {
+                const row = monthlyBody.insertRow();
+                row.className = data.pressurePercent > 1 ? 'highlight' : '';
+                
+                row.insertCell(0).textContent = data.month;
+                row.insertCell(1).textContent = formatCurrency(data.marketCap);
+                row.insertCell(2).textContent = formatCurrency(data.price);
+                row.insertCell(3).textContent = formatCurrency(data.holdersPressure);
+                row.insertCell(4).textContent = formatCurrency(data.groupPressure);
+                row.insertCell(5).textContent = formatCurrency(data.totalPressure);
+                row.insertCell(6).textContent = data.pressurePercent.toFixed(3) + '%';
+                row.insertCell(7).textContent = data.activeSellers;
+                
+                // Add tooltip for month 1 to explain liquidity pool
+                if (data.month === 1) {
+                    row.cells[3].title = "Liquidity Pool: 28,217,996 tokens × $0.50 = $14,108,998";
+                }
+            });
+            
+            // Update holder status table
+            const holderBody = document.getElementById('holderData');
+            holderBody.innerHTML = '';
+            
+            holders.forEach((holder, index) => {
+                // Skip Liquidity Pool in holder status table
+                if (holder.name === "LIQUIDITY POOL") return;
+                
+                const row = holderBody.insertRow();
+                const monthlyRelease = calculateMonthlyRelease(holder.tokens, holder.years);
+                const firstSellMonth = holder.years === 0 ? 1 : 13;
+                let lastSellMonth = holder.years === 0 ? 1 : (12 + holder.years * 12);
+                
+                // Check if holder ran out of tokens early
+                const simLength = simulationData.length;
+                if (simLength >= lastSellMonth) {
+                    let totalSold = 0;
+                    for (let m = firstSellMonth; m <= lastSellMonth && m <= simLength; m++) {
+                        totalSold += monthlyRelease;
+                        if (totalSold >= holder.tokens) {
+                            lastSellMonth = m;
+                            break;
+                        }
+                    }
+                }
+                
+                row.insertCell(0).textContent = holder.name;
+                row.insertCell(1).textContent = formatNumber(holder.tokens);
+                row.insertCell(2).textContent = holder.years;
+                row.insertCell(3).textContent = formatNumber(monthlyRelease);
+                row.insertCell(4).textContent = firstSellMonth;
+                row.insertCell(5).textContent = lastSellMonth;
+                
+                const statusCell = row.insertCell(6);
+                if (lastSellMonth <= simulationData.length) {
+                    statusCell.innerHTML = '<span class="fully-liquidated">Fully Liquidated</span>';
+                } else if (firstSellMonth <= simulationData.length) {
+                    statusCell.innerHTML = '<span class="holder-status">Active</span>';
+                } else {
+                    statusCell.innerHTML = '<span class="holder-status">Locked</span>';
+                }
+            });
+        }
+
+        function updateSummary() {
+            // Calculate total holder tokens excluding Liquidity Pool
+            const totalHolderTokens = holders
+                .filter(h => h.name !== "LIQUIDITY POOL")
+                .reduce((sum, h) => sum + h.tokens, 0);
+            const raiseDonated = parseFloat(document.getElementById('raiseDonated').value) / 100;
+            const groupTokens = 25000000 * (1 - raiseDonated);
+            const totalTokens = totalHolderTokens + groupTokens;
+            
+            const maxPressure = Math.max(...simulationData.map(d => d.totalPressure));
+            const maxPressureMonth = simulationData.find(d => d.totalPressure === maxPressure).month;
+            const avgPressure = simulationData.reduce((sum, d) => sum + d.totalPressure, 0) / simulationData.length;
+            
+            document.getElementById('summaryContent').innerHTML = `
+                <p><strong>Total Holder Tokens:</strong> ${formatNumber(totalHolderTokens)}</p>
+                <p><strong>Group Investment Tokens:</strong> ${formatNumber(groupTokens)} (after ${(raiseDonated * 100).toFixed(0)}% donation)</p>
+                <p><strong>Total Tokens in Simulation:</strong> ${formatNumber(totalTokens)}</p>
+                <p><strong>Peak Selling Pressure:</strong> ${formatCurrency(maxPressure)} in Month ${maxPressureMonth}</p>
+                <p><strong>Average Monthly Selling Pressure:</strong> ${formatCurrency(avgPressure)}</p>
+            `;
+        }
+
+        function updateChart() {
+            const canvas = document.getElementById('pressureChart');
+            const ctx = canvas.getContext('2d');
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Set up chart dimensions
+            const padding = 50;
+            const chartWidth = canvas.width - 2 * padding;
+            const chartHeight = canvas.height - 2 * padding;
+            
+            // Find max values
+            const maxPressure = Math.max(...simulationData.map(d => d.totalPressure));
+            const months = simulationData.length;
+            
+            // Draw axes
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(padding, padding);
+            ctx.lineTo(padding, canvas.height - padding);
+            ctx.lineTo(canvas.width - padding, canvas.height - padding);
+            ctx.stroke();
+            
+            // Draw data
+            const drawLine = (data, color, label) => {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                
+                data.forEach((value, index) => {
+                    const x = padding + (index / (months - 1)) * chartWidth;
+                    const y = canvas.height - padding - (value / maxPressure) * chartHeight;
+                    
+                    if (index === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+                
+                ctx.stroke();
+            };
+            
+            // Draw lines
+            drawLine(simulationData.map(d => d.holdersPressure), '#FF6384', 'Holders');
+            drawLine(simulationData.map(d => d.groupPressure), '#36A2EB', 'Group');
+            drawLine(simulationData.map(d => d.totalPressure), '#4CAF50', 'Total');
+            
+            // Add labels
+            ctx.fillStyle = '#333';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            
+            // X-axis labels
+            for (let i = 0; i <= 10; i++) {
+                const monthIndex = Math.floor((i / 10) * (months - 1));
+                const x = padding + (i / 10) * chartWidth;
+                ctx.fillText(simulationData[monthIndex].month, x, canvas.height - padding + 20);
+            }
+            
+            // Y-axis labels
+            ctx.textAlign = 'right';
+            for (let i = 0; i <= 5; i++) {
+                const value = (i / 5) * maxPressure;
+                const y = canvas.height - padding - (i / 5) * chartHeight;
+                ctx.fillText(formatCurrency(value), padding - 10, y + 5);
+            }
+            
+            // Legend
+            const legendY = 20;
+            const legendItems = [
+                { color: '#FF6384', label: 'Holders Pressure' },
+                { color: '#36A2EB', label: 'Group Pressure' },
+                { color: '#4CAF50', label: 'Total Pressure' }
+            ];
+            
+            legendItems.forEach((item, index) => {
+                const x = canvas.width - 200;
+                const y = legendY + index * 20;
+                
+                ctx.fillStyle = item.color;
+                ctx.fillRect(x, y - 10, 15, 15);
+                
+                ctx.fillStyle = '#333';
+                ctx.textAlign = 'left';
+                ctx.fillText(item.label, x + 20, y);
+            });
+        }
+
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Run initial simulation
+        runSimulation();
+    </script>
+</body>
+</html>
