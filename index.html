@@ -163,6 +163,7 @@
                                 <th>Holders Pressure</th>
                                 <th>Group Pressure</th>
                                 <th>Total Pressure</th>
+                                <th>Cumulative Pressure</th>
                                 <th>% of Market Cap</th>
                                 <th>Active Sellers</th>
                             </tr>
@@ -268,6 +269,7 @@
             const groupMonthlyRelease = groupTokens / (5 * 12); // 5 year vest
 
             simulationData = [];
+            let cumulativePressure = 0;
             
             // Track holder status
             const holderStatus = holders.map(h => ({
@@ -317,6 +319,7 @@
                 }
                 
                 const totalPressure = holdersPressure + groupPressure;
+                cumulativePressure += totalPressure;
                 const pressurePercent = (totalPressure / marketCap) * 100;
                 
                 simulationData.push({
@@ -326,6 +329,7 @@
                     holdersPressure,
                     groupPressure,
                     totalPressure,
+                    cumulativePressure,
                     pressurePercent,
                     activeSellers
                 });
@@ -359,13 +363,9 @@
                 row.insertCell(3).textContent = formatCurrency(data.holdersPressure);
                 row.insertCell(4).textContent = formatCurrency(data.groupPressure);
                 row.insertCell(5).textContent = formatCurrency(data.totalPressure);
-                row.insertCell(6).textContent = data.pressurePercent.toFixed(3) + '%';
-                row.insertCell(7).textContent = data.activeSellers;
-                
-                // Add tooltip for month 1 to explain liquidity pool
-                if (data.month === 1) {
-                    row.cells[3].title = "Liquidity Pool: 28,217,996 tokens × $0.50 = $14,108,998";
-                }
+                row.insertCell(6).textContent = formatCurrency(data.cumulativePressure);
+                row.insertCell(7).textContent = data.pressurePercent.toFixed(3) + '%';
+                row.insertCell(8).textContent = data.activeSellers;
             });
             
             // Update holder status table
@@ -424,6 +424,7 @@
             const maxPressure = Math.max(...simulationData.map(d => d.totalPressure));
             const maxPressureMonth = simulationData.find(d => d.totalPressure === maxPressure).month;
             const avgPressure = simulationData.reduce((sum, d) => sum + d.totalPressure, 0) / simulationData.length;
+            const totalCumulativePressure = simulationData[simulationData.length - 1]?.cumulativePressure || 0;
             
             document.getElementById('summaryContent').innerHTML = `
                 <p><strong>Total Holder Tokens:</strong> ${formatNumber(totalHolderTokens)}</p>
@@ -431,6 +432,7 @@
                 <p><strong>Total Tokens in Simulation:</strong> ${formatNumber(totalTokens)}</p>
                 <p><strong>Peak Selling Pressure:</strong> ${formatCurrency(maxPressure)} in Month ${maxPressureMonth}</p>
                 <p><strong>Average Monthly Selling Pressure:</strong> ${formatCurrency(avgPressure)}</p>
+                <p><strong>Total Cumulative Selling Pressure:</strong> ${formatCurrency(totalCumulativePressure)}</p>
             `;
         }
 
