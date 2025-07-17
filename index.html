@@ -185,6 +185,7 @@
                                 <th>Monthly Release</th>
                                 <th>First Sell Month</th>
                                 <th>Last Sell Month</th>
+                                <th>Total $ Sold</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -250,6 +251,7 @@
         ];
 
         let simulationData = [];
+        let holderStatus = [];
 
         function calculateMonthlyRelease(totalTokens, vestingYears) {
             if (vestingYears === 0) return totalTokens; // Liquidity pool
@@ -272,13 +274,14 @@
             let cumulativePressure = 0;
             
             // Track holder status
-            const holderStatus = holders.map(h => ({
+            holderStatus = holders.map(h => ({
                 ...h,
                 monthlyRelease: calculateMonthlyRelease(h.tokens, h.years),
                 firstSellMonth: h.years === 0 ? 1 : 13, // Liquidity pool sells immediately, others after 12 month lock
                 tokensRemaining: h.tokens,
                 lastSellMonth: null,
-                fullyLiquidated: false
+                fullyLiquidated: false,
+                totalDollarsSold: 0
             }));
 
             // Run simulation
@@ -300,8 +303,10 @@
                         
                         if (monthsAfterLock <= maxMonths && holder.tokensRemaining > 0) {
                             const sellAmount = Math.min(holder.monthlyRelease, holder.tokensRemaining);
-                            holdersPressure += sellAmount * price;
+                            const dollarValue = sellAmount * price;
+                            holdersPressure += dollarValue;
                             holder.tokensRemaining -= sellAmount;
+                            holder.totalDollarsSold += dollarValue;
                             activeSellers++;
                             
                             if (holder.tokensRemaining < 1) {
@@ -381,6 +386,10 @@
                 const firstSellMonth = holder.years === 0 ? 1 : 13;
                 let lastSellMonth = holder.years === 0 ? 1 : (12 + holder.years * 12);
                 
+                // Get the actual status from the simulation
+                const holderSim = holderStatus.find(h => h.name === holder.name);
+                const totalDollarsSold = holderSim ? holderSim.totalDollarsSold : 0;
+                
                 // Check if holder ran out of tokens early
                 const simLength = simulationData.length;
                 if (simLength >= lastSellMonth) {
@@ -400,9 +409,10 @@
                 row.insertCell(3).textContent = formatNumber(monthlyRelease);
                 row.insertCell(4).textContent = firstSellMonth;
                 row.insertCell(5).textContent = lastSellMonth;
+                row.insertCell(6).textContent = formatCurrency(totalDollarsSold);
                 
-                const statusCell = row.insertCell(6);
-                if (lastSellMonth <= simulationData.length) {
+                const statusCell = row.insertCell(7);
+                if (lastSellMonth <= simulationData.length && holderSim?.fullyLiquidated) {
                     statusCell.innerHTML = '<span class="fully-liquidated">Fully Liquidated</span>';
                 } else if (firstSellMonth <= simulationData.length) {
                     statusCell.innerHTML = '<span class="holder-status">Active</span>';
