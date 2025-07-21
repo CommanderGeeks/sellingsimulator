@@ -274,15 +274,28 @@
             let cumulativePressure = 0;
             
             // Track holder status
-            holderStatus = holders.map(h => ({
-                ...h,
-                monthlyRelease: calculateMonthlyRelease(h.tokens, h.years),
-                firstSellMonth: h.years === 0 ? 1 : 13, // Liquidity pool sells immediately, others after 12 month lock
-                tokensRemaining: h.tokens,
-                lastSellMonth: null,
-                fullyLiquidated: false,
-                totalDollarsSold: 0
-            }));
+            holderStatus = holders.map(h => {
+                // Top 10 holders (excluding Liquidity Pool) get 2-year lock
+                const top10Holders = [
+                    "LM", "ANTON", "RYAN", "BASIL ABDO", "LAITH BTC TRADE",
+                    "MENDOZA", "FOU D + TAREK D + HUSSEIN A", "LM/FP/HM/WY/MZ",
+                    "ABDULLAH / GROUP", "Paisa"
+                ];
+                
+                const isTop10 = top10Holders.includes(h.name);
+                const lockMonths = isTop10 ? 24 : 12; // 2 years for top 10, 1 year for others
+                
+                return {
+                    ...h,
+                    monthlyRelease: calculateMonthlyRelease(h.tokens, h.years),
+                    firstSellMonth: h.name === "LIQUIDITY POOL" ? 1 : (lockMonths + 1),
+                    tokensRemaining: h.tokens,
+                    lastSellMonth: null,
+                    fullyLiquidated: false,
+                    totalDollarsSold: 0,
+                    lockMonths: lockMonths
+                };
+            });
 
             // Run simulation
             for (let month = 1; month <= simMonths; month++) {
@@ -383,8 +396,18 @@
                 
                 const row = holderBody.insertRow();
                 const monthlyRelease = calculateMonthlyRelease(holder.tokens, holder.years);
-                const firstSellMonth = holder.years === 0 ? 1 : 13;
-                let lastSellMonth = holder.years === 0 ? 1 : (12 + holder.years * 12);
+                
+                // Determine lock period based on top 10 status
+                const top10Holders = [
+                    "LM", "ANTON", "RYAN", "BASIL ABDO", "LAITH BTC TRADE",
+                    "MENDOZA", "FOU D + TAREK D + HUSSEIN A", "LM/FP/HM/WY/MZ",
+                    "ABDULLAH / GROUP", "Paisa"
+                ];
+                const isTop10 = top10Holders.includes(holder.name);
+                const lockMonths = isTop10 ? 24 : 12;
+                const firstSellMonth = lockMonths + 1;
+                
+                let lastSellMonth = holder.years === 0 ? 1 : (lockMonths + holder.years * 12);
                 
                 // Get the actual status from the simulation
                 const holderSim = holderStatus.find(h => h.name === holder.name);
